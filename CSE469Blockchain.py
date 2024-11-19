@@ -1,28 +1,40 @@
-import sys
 import argparse
 import os
+import sys
+
 from blockchain import Blockchain
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Blockchain Chain of Custody")
 
     # Define subcommands
-    subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
+    subparsers = parser.add_subparsers(
+        dest="command", required=True, help="Available commands"
+    )
 
     # init
-    subparsers.add_parser("init", help="Initialize the blockchain with the genesis block")
+    subparsers.add_parser(
+        "init", help="Initialize the blockchain with the genesis block"
+    )
 
     # add
     add_parser = subparsers.add_parser("add", help="Add new evidence to a case")
     add_parser.add_argument("-c", "--case_id", required=True, help="Case ID (UUID)")
-    add_parser.add_argument("-i", "--item_id", required=True, nargs="+", help="Item ID(s)")
+    add_parser.add_argument(
+        "-i", "--item_id", required=True, nargs="+", help="Item ID(s)"
+    )
     add_parser.add_argument("-g", "--creator", required=True, help="Creator name")
     add_parser.add_argument("-p", "--password", required=True, help="Creator password")
 
     # checkout
-    checkout_parser = subparsers.add_parser("checkout", help="Checkout an evidence item")
+    checkout_parser = subparsers.add_parser(
+        "checkout", help="Checkout an evidence item"
+    )
     checkout_parser.add_argument("-i", "--item_id", required=True, help="Item ID")
-    checkout_parser.add_argument("-p", "--password", required=True, help="User password")
+    checkout_parser.add_argument(
+        "-p", "--password", required=True, help="User password"
+    )
 
     # checkin
     checkin_parser = subparsers.add_parser("checkin", help="Checkin an evidence item")
@@ -31,24 +43,41 @@ def parse_arguments():
 
     # show
     show_parser = subparsers.add_parser("show", help="Display cases, items, or history")
-    show_parser.add_argument("type", choices=["cases", "items", "history"], help="What to show")
+    show_parser.add_argument(
+        "type", choices=["cases", "items", "history"], help="What to show"
+    )
     show_parser.add_argument("-c", "--case_id", help="Filter by Case ID")
     show_parser.add_argument("-i", "--item_id", help="Filter by Item ID")
     show_parser.add_argument("-n", "--num_entries", type=int, help="Number of entries")
-    show_parser.add_argument("-r", "--reverse", action="store_true", help="Show in reverse order")
+    show_parser.add_argument(
+        "-r", "--reverse", action="store_true", help="Show in reverse order"
+    )
     show_parser.add_argument("-p", "--password", help="Password for validation")
 
     # remove
     remove_parser = subparsers.add_parser("remove", help="Remove an evidence item")
     remove_parser.add_argument("-i", "--item_id", required=True, help="Item ID")
-    remove_parser.add_argument("-y", "--reason", required=True, choices=["DISPOSED", "DESTROYED", "RELEASED"], help="Reason for removal")
-    remove_parser.add_argument("-o", "--owner", help="Owner to release to (if reason is RELEASED)")
-    remove_parser.add_argument("-p", "--password", required=True, help="Creator password")
+    remove_parser.add_argument(
+        "-y",
+        "--reason",
+        required=True,
+        choices=["DISPOSED", "DESTROYED", "RELEASED"],
+        help="Reason for removal",
+    )
+    remove_parser.add_argument(
+        "-o", "--owner", help="Owner to release to (if reason is RELEASED)"
+    )
+    remove_parser.add_argument(
+        "-p", "--password", required=True, help="Creator password"
+    )
 
     # verify
-    subparsers.add_parser("verify", help="Verify the integrity of the blockchain")
+    verify_parser = subparsers.add_parser(
+        "verify", help="Verify the integrity of the blockchain"
+    )
 
     return parser.parse_args()
+
 
 def main():
     args = parse_arguments()
@@ -59,7 +88,7 @@ def main():
     try:
         # Route commands
         if args.command == "init":
-            #blockchain.init()
+            # blockchain.init()
             print("Blockchain initialized.")
         elif args.command == "add":
             for item_id in args.item_id:
@@ -78,19 +107,21 @@ def main():
                 blockchain.show_items(args.case_id, args.password)
             elif args.type == "history":
                 blockchain.show_history(
-                    args.case_id, args.item_id, args.num_entries, args.reverse, args.password
+                    args.case_id,
+                    args.item_id,
+                    args.num_entries,
+                    args.reverse,
+                    args.password,
                 )
         elif args.command == "remove":
             blockchain.remove(args.item_id, args.reason, args.owner, args.password)
             print(f"Item {args.item_id} removed.")
         elif args.command == "verify":
-            if blockchain.verify():
-                print("Blockchain integrity verified: CLEAN.")
-            else:
-                print("Blockchain integrity verification failed: ERROR.")
+            blockchain.verify()
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
