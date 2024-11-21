@@ -56,14 +56,16 @@ class Blockchain:
                     block = {
                         "prev_hash": unpacked[0].decode().strip("\0"),
                         "timestamp": unpacked[1],
-                        "case_id": unpacked[2],
-                        "item_id": unpacked[3],
+                        "case_id": unpacked[2].decode().strip("\0"),
+                        "item_id": unpacked[3].decode().strip("\0"),  # make sure itemid is a string
                         "state": unpacked[4].decode().strip("\0"),
                         "creator": unpacked[5].decode().strip("\0"),
                         "owner": unpacked[6].decode().strip("\0"),
                         "data_length": data_length,
-                        "data": additional_data.decode(),
+                        "data": additional_data.decode("utf-8"),
                     }
+                        #debug: print loaded block
+                    print(f"Loaded Block: {block}")
 
                     # Append the reconstructed block to the chain
                     self.chain.append(block)
@@ -74,33 +76,95 @@ class Blockchain:
 
     def add(self, case_id, item_ids, creator, password):
         """
-        Add new evidence items to a case in the blockchain.
+        Add new evidence items to the blockchain.
         """
-
-        # check for invalid password
+        # password comparison to check if it meets creator
         if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
-            raise ValueError("Invalid creator password in add")
+            raise ValueError("Invalid creator password in add.")
+
+        # check if case_id is a valid UUID
+        try:
+            uuid.UUID(case_id)
+        except ValueError:
+            raise ValueError("Invalid case_id format. Must be a UUID.")
+
+        # checks to see if  item_ids is a list of non-empty values and unique
+        if not item_ids or not isinstance(item_ids, list):
+            raise ValueError("item_ids must be a non-empty list.")
+        
+        processed_item_ids = set()  
 
         for item_id in item_ids:
-            # check for duplicate item ID
-            if any(block["item_id"] == item_id for block in self.chain):
-                raise ValueError(f"Item ID {item_id} already exists in the blockchain.")
 
-            # create the new block or genesis block
-            prev_hash = self.chain[-1].hash.encode() if self.chain else b"\x00" * 32
+            item_id_str = str(item_id)
+
+            # checks duplicates item IDs in the input
+            if item_id_str in processed_item_ids:
+                raise ValueError(f"Duplicate Item ID {item_id_str} found in input.")
+            processed_item_ids.add(item_id_str)
+
+            # checks if the item ID already exists in the blockchain
+            if any(block["item_id"] == item_id_str for block in self.chain):
+                raise ValueError(f"Item ID {item_id_str} already exists in the blockchain.")
+
+            # determine the previous hash
+            prev_hash = self.chain[-1]["hash"].encode("utf-8") if self.chain else b"\x00" * 32
+
+            # new block creation
             block = Block(
                 prev_hash=prev_hash,
                 timestamp=get_timestamp(),
                 case_id=case_id,
-                item_id=item_id,
+                item_id=item_id_str,
                 state="CHECKEDIN",
                 creator=creator,
                 owner="",
-                data="",
+                data=""
             )
-            self.chain.append(block)  # Add to in-memory chain
-            self.write_block(block)  # Persist to file
-        print("Added items:", ", ".join(item_ids))
+
+            # converted to dictionary for storage
+            block_dict = {
+                "prev_hash": block.prev_hash.decode("utf-8") if isinstance(block.prev_hash, bytes) else block.prev_hash,
+                "timestamp": block.timestamp,
+                "case_id": case_id,
+                "item_id": item_id_str,
+                "state": "CHECKEDIN",
+                "creator": creator,
+                "owner": "",
+                "data": "",
+                "hash": block.calculate_hash()
+            }
+
+            # add block to memory chain and write to file
+            self.chain.append(block_dict)
+            self.write_block(block_dict)
+
+        print(f"Successfully added items: {', '.join(processed_item_ids)}")
+
+
+    def write_block(self, block):
+        """
+        Persist a block to the blockchain file.
+        """
+        with open(self.path, "ab") as f:
+            #  fields are in bytes format
+            packed_block = struct.pack(
+                "32s d 32s 32s 12s 12s 12s I",
+                block["prev_hash"].encode("utf-8")[:32] if isinstance(block["prev_hash"], str) else block["prev_hash"][:32],
+                block["timestamp"],  # float
+                block["case_id"].encode("utf-8")[:32] if isinstance(block["case_id"], str) else block["case_id"][:32],
+                block["item_id"].encode("utf-8")[:32] if isinstance(block["item_id"], str) else block["item_id"][:32],
+                block["state"].encode("utf-8")[:12] if isinstance(block["state"], str) else block["state"][:12],
+                block["creator"].encode("utf-8")[:12] if isinstance(block["creator"], str) else block["creator"][:12],
+                block["owner"].encode("utf-8")[:12] if isinstance(block["owner"], str) else block["owner"][:12],
+                len(block["data"]),  # integer
+            )
+            
+
+            # write packed block and its data to the file
+            f.write(packed_block)
+            f.write(block["data"].encode("utf-8") if isinstance(block["data"], str) else block["data"])
+
 
     def checkout(self, item_id, password):
         """
@@ -197,13 +261,13 @@ class Block:
         block_data = struct.pack(
             "32s d 32s 32s 12s 12s 12s I",
             self.prev_hash[:32],  # Truncate if longer than 32 bytes
-            self.timestamp(),  # Get the timestamp, whether provided or generated
+            self.timestamp,  # Get the timestamp, whether provided or generated
             self.case_id[:32],
             self.item_id[:32],
             self.state[:12],
             self.creator[:12],
             self.owner[:12],
-            self.data,
+            len(self.data),
         )
         return block_data
 
