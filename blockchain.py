@@ -88,8 +88,9 @@ class Blockchain:
 
             # create the new block or genesis block
             prev_hash = self.chain[-1].hash.encode() if self.chain else b"\x00" * 32
-            block = self.create_block(
+            block = Block(
                 prev_hash=prev_hash,
+                timestamp=get_timestamp(),
                 case_id=case_id,
                 item_id=item_id,
                 state="CHECKEDIN",
@@ -148,6 +149,7 @@ class Blockchain:
 
         new_block = self.create_block(
             prev_hash=self.chain[-1]["hash"],
+            timestamp=get_timestamp(),
             case_id=block["case_id"],
             item_id=item_id,
             state="CHECKEDIN",
@@ -170,65 +172,59 @@ class Blockchain:
         return True
 
 
+# This class was generated with assistance from ChatGPT, an AI tool developed by OpenAI. Specifically, the struct unpacking was cleaned up from our initial implementation
+# Reference: OpenAI. (2024). ChatGPT [Large language model]. openai.com/chatgpt
 class Block:
     def __init__(
-        self,
-        prev_hash=b"\x00" * 32,
-        timestamp=None,
-        case_id=None,
-        evidence_id=None,
-        state=b"INITIAL\0\0\0\0\0",
-        creator=b"\0" * 12,
-        owner=b"\0" * 12,
-        data=b"Initial block\0",
+        self, prev_hash, timestamp, case_id, item_id, state, creator, owner, data
     ):
-        self.prev_hash = prev_hash
-        self.timestamp = get_timestamp() if timestamp is None else timestamp
-        self.case_id = (
-            case_id if case_id else uuid.uuid4().bytes
-        )  # 16-byte UUID (unpacked into 32 bytes)
-        self.evidence_id = (
-            evidence_id if evidence_id else struct.pack("I", 0)
-        )  # 4-byte integer for ID
-        self.case_id = self.encrypt(self.case_id)
-        self.evidence_id = self.encrypt(str(evidence_id).zfill(4))
-        self.state = state
-        self.creator = creator
-        self.owner = owner
-        self.data = data.encode()
-        self.data_length = len(self.data)
-        self.hash = self.calculate_hash()
+        self.prev_hash = prev_hash.encode("utf-8")
+        self.timestamp = timestamp
+        self.case_id = case_id.encode("utf-8")
+        self.item_id = item_id.encode("utf-8")
+        self.state = state.encode("utf-8")
+        self.creator = creator.encode("utf-8")
+        self.owner = owner.encode("utf-8")
+        self.data = data.encode("utf-8")
 
     def encrypt(self, value):
         cipher = AES.new(AES_KEY, AES.MODE_ECB)
         padded = value.ljust(16, "\0")
         return cipher.encrypt(padded.encode())
 
-    def pack(self):
-        # Pack all fields using struct
-        return (
-            struct.pack(
-                "32s d 32s 32s 12s 12s I",
-                self.prev_hash,
-                self.timestamp,
-                self.case_id,
-                self.evidence_id,
-                self.state.ljust(12, "\0").encode(),
-                self.creator.ljust(12, "\0").encode(),
-                self.owner.ljust(12, "\0").encode(),
-                self.data_length,
-            )
-            + self.data
+    def create_block(self):
+        """Pack the block data using struct"""
+        block_data = struct.pack(
+            "32s d 32s 32s 12s 12s 12s I",
+            self.prev_hash[:32],  # Truncate if longer than 32 bytes
+            self.timestamp(),  # Get the timestamp, whether provided or generated
+            self.case_id[:32],
+            self.item_id[:32],
+            self.state[:12],
+            self.creator[:12],
+            self.owner[:12],
+            self.data,
         )
+        return block_data
 
-    # Timestamp helper
-    def get_timestamp():
-        # Generate UTC timestamp
-        return datetime.now(timezone.utc).timestamp()
+    @staticmethod
+    def unpack_block(block_data):
+        """Unpack a block from its packed representation"""
+        unpacked = struct.unpack("32s d 32s 32s 12s 12s 12s I", block_data)
+        return {
+            "prev_hash": unpacked[0].decode("utf-8").rstrip("\0"),
+            "timestamp": unpacked[1],
+            "case_id": unpacked[2].decode("utf-8").rstrip("\0"),
+            "item_id": unpacked[3].decode("utf-8").rstrip("\0"),
+            "state": unpacked[4].decode("utf-8").rstrip("\0"),
+            "creator": unpacked[5].decode("utf-8").rstrip("\0"),
+            "owner": unpacked[6].decode("utf-8").rstrip("\0"),
+            "data": unpacked[7],
+        }
 
     # Returns the hash in a readable format for the block
     # I think the raw bytes may be necessary for hashing, but it can always be converted back
     # For output purposes, this should be sufficient
     def calculate_hash(self):
-        block_data = self.pack()
+        block_data = self.create_block()  # Think this works but maybe not - Truman
         return hashlib.sha256(block_data).hexdigest()
