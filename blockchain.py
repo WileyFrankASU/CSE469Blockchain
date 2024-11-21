@@ -178,7 +178,7 @@ class Block:
     def __init__(
         self, prev_hash, timestamp, case_id, item_id, state, creator, owner, data
     ):
-        self.prev_hash = prev_hash.encode("utf-8")
+        self.prev_hash = prev_hash
         self.timestamp = timestamp
         self.case_id = case_id.encode("utf-8")
         self.item_id = item_id.encode("utf-8")
