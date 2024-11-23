@@ -98,7 +98,7 @@ def main():
         elif args.command == "add":
             for item_id in args.item_id:
                 blockchain.add(args.case_id, item_id, args.creator, args.password)
-            print("Evidence added successfully.")
+           # print("Evidence added successfully.")
         elif args.command == "checkout":
             blockchain.checkout(args.item_id, args.password)
             print(f"Item {args.item_id} checked out.")
