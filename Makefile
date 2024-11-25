@@ -1,7 +1,5 @@
-
 PYTHON_SCRIPT = CSE469Blockchain.py
 EXECUTABLE = bchoc
-
 
 all: $(EXECUTABLE)
 
