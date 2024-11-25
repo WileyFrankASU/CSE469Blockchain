@@ -21,7 +21,9 @@ def parse_arguments():
     # add
     add_parser = subparsers.add_parser("add", help="Add new evidence to a case")
     add_parser.add_argument("-c", "--case_id", required=True, help="Case ID (UUID)")
-    add_parser.add_argument( "-i", "--item_id", required=True, nargs="+", type=ensure_list, help="Item ID(s)" )
+    add_parser.add_argument(
+        "-i", "--item_id", required=True, nargs="+", type=ensure_list, help="Item ID(s)"
+    )
     add_parser.add_argument("-g", "--creator", required=True, help="Creator name")
     add_parser.add_argument("-p", "--password", required=True, help="Creator password")
 
@@ -77,11 +79,12 @@ def parse_arguments():
     return parser.parse_args()
 
     # helper  to ensure item_ids is a list
+
+
 def ensure_list(value):
     if isinstance(value, list):
         return value
     return [value]
-
 
 
 def main():
@@ -93,12 +96,12 @@ def main():
     try:
         # Route commands
         if args.command == "init":
-            # blockchain.init()
+            blockchain.initialize()
             print("Blockchain initialized.")
         elif args.command == "add":
             for item_id in args.item_id:
                 blockchain.add(args.case_id, item_id, args.creator, args.password)
-           # print("Evidence added successfully.")
+        # print("Evidence added successfully.")
         elif args.command == "checkout":
             blockchain.checkout(args.item_id, args.password)
             print(f"Item {args.item_id} checked out.")
