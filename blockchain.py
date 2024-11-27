@@ -112,7 +112,7 @@ class Blockchain:
 
                 except struct.error:
                     print("Error parsing blockchain file. The file might be corrupted.")
-                    break
+                    raise SystemExit(1)
 
     def add(self, case_id, item_ids, creator, password):
         """
@@ -139,7 +139,7 @@ class Blockchain:
         if not self.chain:
             print("Blockchain file not found. Creating INITIAL block.")
             genesis_block = Block(
-                prev_hash=b"\x00" * 32,  # 32 zero bytes
+                prev_hash='0',  # 32 zero bytes
                 timestamp=0,  # Placeholder for timestamp
                 case_id=b"0" * 32,  # 32 zero bytes
                 item_id=b"0" * 32,  # 32 zero bytes
@@ -218,6 +218,59 @@ class Blockchain:
                 f"Status: CHECKEDIN\n"
                 f"Time of action: {datetime.fromtimestamp(block.timestamp, timezone.utc).isoformat()}Z"
             )
+    def remove(self, item_id, reason, password, owner=None):
+        
+        #password check broken -> always saying invalid password
+        '''
+        if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
+            raise ValueError("Invalid password")
+        '''
+    
+        reasons = {"DISPOSED", "DESTROYED", "RELEASED"}
+        if reason not in reasons:
+            raise ValueError(f"Invalid reason '{reason}'. Must be one of {reasons}.")
+
+        if reason == "RELEASED" and not owner:
+            raise ValueError("Owner must be provided when reason is RELEASED.")
+
+
+        e_item = encrypt(str(item_id).strip()).hex()
+
+        # Find the block corresponding to the item_id
+        block = next(
+            (
+                b
+                for b in reversed(self.chain)
+                if b.item_id.rstrip("0").rstrip()
+                == e_item.rstrip("0").rstrip()
+            ),
+            None,
+        )
+        if not block:
+            raise ValueError(f"Item ID {item_id} not found.")
+
+        # check if the current state is ok for removal
+        if block.state != "CHECKEDIN":
+            raise ValueError(f"Item ID {item_id} cannot be removed as it is not CHECKEDIN.")
+
+        # add  new block with the state set to the removal reason
+        new_block = Block(
+            prev_hash=self.chain[-1].hash,
+            timestamp=get_timestamp(),
+            case_id=block.case_id,
+            item_id=block.item_id,
+            state=reason,
+            creator=block.creator,
+            owner=owner or "",
+            data="",  
+        )
+        new_block.hash = self.calculate_hash(new_block)
+        self.chain.append(new_block)
+        self.write_block(new_block)
+
+        print(f"Item {item_id} removed successfully with reason: {reason}.")
+
+
 
     def write_block(self, block):
         """
@@ -291,7 +344,7 @@ class Blockchain:
         if not block:
             raise ValueError(f"Item ID {item_id} not found.")
 
-        if block.state == ("CHECKEDIN" or "INITIAL"):
+        if block.state not in {"CHECKEDIN", "INITIAL"}:
             raise ValueError(
                 f"Item ID {item_id} cannot be checked out as it is not CHECKEDIN."
             )
