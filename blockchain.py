@@ -97,7 +97,7 @@ class Blockchain:
                     # reading in data for the length from the end of data length, as packed
 
                     block = Block(
-                        prev_hash=unpacked[0].rstrip(b"\0").decode("utf-8"),
+                        prev_hash=unpacked[0].rstrip(b"\0").hex(),
                         timestamp=unpacked[1],
                         case_id=unpacked[2].hex(),
                         item_id=unpacked[3].hex(),
