@@ -114,6 +114,22 @@ class Blockchain:
                     print("Error parsing blockchain file. The file might be corrupted.")
                     raise SystemExit(1)
 
+    """
+    #Print the chain for debugging purposes. Comment out when you don't need it/are submitting
+    def print_chain(self):
+        for index, block in enumerate(self.chain):
+            print(f"Block {index}:")
+            print(f"  prev_hash: {block.prev_hash}")
+            print(f"  timestamp: {block.timestamp}")
+            print(f"  case_id: {block.case_id}")
+            print(f"  item_id: {block.item_id}")
+            print(f"  state: {block.state}")
+            print(f"  creator: {block.creator}")
+            print(f"  owner: {block.owner}")
+            print(f"  data: {block.data}")
+            print("-" * 40)
+    """
+
     def add(self, case_id, item_ids, creator, password):
         """
         Add new evidence items to the blockchain.
@@ -139,7 +155,7 @@ class Blockchain:
         if not self.chain:
             print("Blockchain file not found. Creating INITIAL block.")
             genesis_block = Block(
-                prev_hash='0',  # 32 zero bytes
+                prev_hash="0",  # 32 zero bytes
                 timestamp=0,  # Placeholder for timestamp
                 case_id=b"0" * 32,  # 32 zero bytes
                 item_id=b"0" * 32,  # 32 zero bytes
@@ -218,21 +234,20 @@ class Blockchain:
                 f"Status: CHECKEDIN\n"
                 f"Time of action: {datetime.fromtimestamp(block.timestamp, timezone.utc).isoformat()}Z"
             )
+
     def remove(self, item_id, reason, password, owner=None):
-        
-        #password check broken -> always saying invalid password
-        '''
+        # password check broken -> always saying invalid password
+        """
         if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
             raise ValueError("Invalid password")
-        '''
-    
+        """
+
         reasons = {"DISPOSED", "DESTROYED", "RELEASED"}
         if reason not in reasons:
             raise ValueError(f"Invalid reason '{reason}'. Must be one of {reasons}.")
 
         if reason == "RELEASED" and not owner:
             raise ValueError("Owner must be provided when reason is RELEASED.")
-
 
         e_item = encrypt(str(item_id).strip()).hex()
 
@@ -241,8 +256,7 @@ class Blockchain:
             (
                 b
                 for b in reversed(self.chain)
-                if b.item_id.rstrip("0").rstrip()
-                == e_item.rstrip("0").rstrip()
+                if b.item_id.rstrip("0").rstrip() == e_item.rstrip("0").rstrip()
             ),
             None,
         )
@@ -251,7 +265,9 @@ class Blockchain:
 
         # check if the current state is ok for removal
         if block.state != "CHECKEDIN":
-            raise ValueError(f"Item ID {item_id} cannot be removed as it is not CHECKEDIN.")
+            raise ValueError(
+                f"Item ID {item_id} cannot be removed as it is not CHECKEDIN."
+            )
 
         # add  new block with the state set to the removal reason
         new_block = Block(
@@ -262,15 +278,13 @@ class Blockchain:
             state=reason,
             creator=block.creator,
             owner=owner or "",
-            data="",  
+            data="",
         )
         new_block.hash = self.calculate_hash(new_block)
         self.chain.append(new_block)
         self.write_block(new_block)
 
         print(f"Item {item_id} removed successfully with reason: {reason}.")
-
-
 
     def write_block(self, block):
         """
@@ -509,4 +523,3 @@ class Block:
         block_data = self.create_block()  # Think this works but maybe not - Truman
         return hashlib.sha256(block_data).hexdigest()
 '''
-
