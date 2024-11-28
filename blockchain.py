@@ -95,9 +95,16 @@ class Blockchain:
                     data_length = unpacked[-1]
                     additional_data = f.read(data_length) if data_length > 0 else b""
                     # reading in data for the length from the end of data length, as packed
+                    prev_hash = unpacked[0].hex()
+
+                    # If the prev_hash is all zeros, don't strip the '\0' bytes
+                    if prev_hash == "00" * len(unpacked[0]):
+                        prev_hash = "00" * len(unpacked[0])
+                    else:
+                        prev_hash = prev_hash.rstrip("0")
 
                     block = Block(
-                        prev_hash=unpacked[0].rstrip(b"\0").hex(),
+                        prev_hash=prev_hash,
                         timestamp=unpacked[1],
                         case_id=unpacked[2].hex(),
                         item_id=unpacked[3].hex(),
