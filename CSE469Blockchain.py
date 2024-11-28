@@ -131,5 +131,8 @@ def main():
         sys.exit(1)
 
 
+#    blockchain.print_chain()
+
+
 if __name__ == "__main__":
     main()

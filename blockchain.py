@@ -121,8 +121,7 @@ class Blockchain:
                     print("Error parsing blockchain file. The file might be corrupted.")
                     raise SystemExit(1)
 
-    """
-    #Print the chain for debugging purposes. Comment out when you don't need it/are submitting
+    # Print the chain for debugging purposes. Comment out when you don't need it/are submitting
     def print_chain(self):
         for index, block in enumerate(self.chain):
             print(f"Block {index}:")
@@ -135,7 +134,6 @@ class Blockchain:
             print(f"  owner: {block.owner}")
             print(f"  data: {block.data}")
             print("-" * 40)
-    """
 
     def add(self, case_id, item_ids, creator, password):
         """
