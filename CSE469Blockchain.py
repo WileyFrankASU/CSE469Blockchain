@@ -22,7 +22,12 @@ def parse_arguments():
     add_parser = subparsers.add_parser("add", help="Add new evidence to a case")
     add_parser.add_argument("-c", "--case_id", required=True, help="Case ID (UUID)")
     add_parser.add_argument(
-        "-i", "--item_id", required=True, nargs="+", type=ensure_list, help="Item ID(s)"
+        "-i",
+        "--item_id",
+        required=True,
+        action="append",
+        type=ensure_list,
+        help="Item ID(s)",
     )
     add_parser.add_argument("-g", "--creator", required=True, help="Creator name")
     add_parser.add_argument("-p", "--password", required=True, help="Creator password")
@@ -93,8 +98,8 @@ def main():
     blockchain_path = os.getenv("BCHOC_FILE_PATH", "blockchain.bin")
     blockchain = Blockchain(blockchain_path)
 
-    print("Current Blockchain")
-    blockchain.print_chain()
+    # print("Current Blockchain")
+    # blockchain.print_chain()
 
     try:
         # Route commands
@@ -103,6 +108,7 @@ def main():
             print("Blockchain initialized.")
         elif args.command == "add":
             for item_id in args.item_id:
+                #                print(args.item_id)
                 blockchain.add(args.case_id, item_id, args.creator, args.password)
         elif args.command == "checkout":
             blockchain.checkout(args.item_id, args.password)
@@ -132,8 +138,8 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print("New Blockchain")
-    blockchain.print_chain()
+    # print("New Blockchain")
+    # blockchain.print_chain()
 
 
 if __name__ == "__main__":

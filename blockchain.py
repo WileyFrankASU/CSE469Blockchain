@@ -158,7 +158,7 @@ class Blockchain:
         processed_item_ids = set()
 
         # create the genesis block if the blockchain is empty
-        if not self.chain:
+        if not os.path.exists(self.path) and not self.chain:
             print("Blockchain file not found. Creating INITIAL block.")
             genesis_block = Block(
                 prev_hash="0",  # 32 zero bytes
@@ -454,7 +454,7 @@ class Block:
         self.creator = creator
         self.owner = owner
         self.data = data
-        self.hash = None
+        self.hash = ""
 
     # the to_dict method converts the block attributes into a dictionary format so you can access or store it
 
@@ -470,62 +470,3 @@ class Block:
             "data": self.data,
             "hash": self.hash,
         }
-
-
-# I changed this class bc there were inconsitencies in how the data was being accessed and parsing issues for some reason
-# But if you'd rather have it this way, feel free to change it - Ishana
-'''class Block:
-    def __init__(
-        self, prev_hash, timestamp, case_id, item_id, state, creator, owner, data
-    ):
-        self.prev_hash = prev_hash
-        self.timestamp = timestamp
-        self.case_id = case_id.encode("utf-8")
-        self.item_id = item_id.encode("utf-8")
-        self.state = state.encode("utf-8")
-        self.creator = creator.encode("utf-8")
-        self.owner = owner.encode("utf-8")
-        self.data = data.encode("utf-8")
-
-    def encrypt(self, value):
-        cipher = AES.new(AES_KEY, AES.MODE_ECB)
-        padded = value.ljust(16, "\0")
-        return cipher.encrypt(padded.encode())
-
-    def create_block(self):
-        """Pack the block data using struct"""
-        block_data = struct.pack(
-            "32s d 32s 32s 12s 12s 12s I",
-            self.prev_hash[:32],  # Truncate if longer than 32 bytes
-            self.timestamp,  # Get the timestamp, whether provided or generated
-            self.case_id[:32],
-            self.item_id[:32],
-            self.state[:12],
-            self.creator[:12],
-            self.owner[:12],
-            len(self.data),
-        )
-        return block_data
-
-    @staticmethod
-    def unpack_block(block_data):
-        """Unpack a block from its packed representation"""
-        unpacked = struct.unpack("32s d 32s 32s 12s 12s 12s I", block_data)
-        return {
-            "prev_hash": unpacked[0].decode("utf-8").rstrip("\0"),
-            "timestamp": unpacked[1],
-            "case_id": unpacked[2].decode("utf-8").rstrip("\0"),
-            "item_id": unpacked[3].decode("utf-8").rstrip("\0"),
-            "state": unpacked[4].decode("utf-8").rstrip("\0"),
-            "creator": unpacked[5].decode("utf-8").rstrip("\0"),
-            "owner": unpacked[6].decode("utf-8").rstrip("\0"),
-            "data": unpacked[7],
-        }
-
-    # Returns the hash in a readable format for the block
-    # I think the raw bytes may be necessary for hashing, but it can always be converted back
-    # For output purposes, this should be sufficient
-    def calculate_hash(self):
-        block_data = self.create_block()  # Think this works but maybe not - Truman
-        return hashlib.sha256(block_data).hexdigest()
-'''
