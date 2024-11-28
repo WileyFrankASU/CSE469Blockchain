@@ -124,6 +124,7 @@ class Blockchain:
     # Print the chain for debugging purposes. Comment out when you don't need it/are submitting
     def print_chain(self):
         for index, block in enumerate(self.chain):
+            print(f"Block hash: {block.hash}")
             print(f"Block {index}:")
             print(f"  prev_hash: {block.prev_hash}")
             print(f"  timestamp: {block.timestamp}")

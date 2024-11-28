@@ -93,6 +93,9 @@ def main():
     blockchain_path = os.getenv("BCHOC_FILE_PATH", "blockchain.bin")
     blockchain = Blockchain(blockchain_path)
 
+    print("Current Blockchain")
+    blockchain.print_chain()
+
     try:
         # Route commands
         if args.command == "init":
@@ -101,7 +104,6 @@ def main():
         elif args.command == "add":
             for item_id in args.item_id:
                 blockchain.add(args.case_id, item_id, args.creator, args.password)
-        # print("Evidence added successfully.")
         elif args.command == "checkout":
             blockchain.checkout(args.item_id, args.password)
             print(f"Item {args.item_id} checked out.")
@@ -130,8 +132,8 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-
-#    blockchain.print_chain()
+    print("New Blockchain")
+    blockchain.print_chain()
 
 
 if __name__ == "__main__":
