@@ -65,6 +65,7 @@ def parse_arguments():
     remove_parser.add_argument(
         "-y",
         "--reason",
+        "--why",
         required=True,
         choices=["DISPOSED", "DESTROYED", "RELEASED"],
         help="Reason for removal",
@@ -108,7 +109,6 @@ def main():
             print("Blockchain initialized.")
         elif args.command == "add":
             for item_id in args.item_id:
-                #                print(args.item_id)
                 blockchain.add(args.case_id, item_id, args.creator, args.password)
         elif args.command == "checkout":
             blockchain.checkout(args.item_id, args.password)

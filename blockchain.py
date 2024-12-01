@@ -23,6 +23,26 @@ def encrypt(value):
     return cipher.encrypt(padded_value)
 
 
+def decrypt(encrypted_value):
+    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    decrypted = cipher.decrypt(encrypted_value)
+    return decrypted('utf-8')
+
+
+def retrieve_case_id(encrypted_case_id):
+    # Decrypt the case_id
+    decrypted_case_id = decrypt(bytes.fromhex(encrypted_case_id))
+    # Format with dashes
+    formatted_case_id = (
+        decrypted_case_id[:8] + "-" +
+        decrypted_case_id[8:12] + "-" +
+        decrypted_case_id[12:16] + "-" +
+        decrypted_case_id[16:20] + "-" +
+        decrypted_case_id[20:]
+    )
+    return formatted_case_id
+
+
 class Blockchain:
     def __init__(self, path):
         self.path = path  # Path to the blockchain file
@@ -212,7 +232,7 @@ class Blockchain:
             processed_item_ids.add(encrypted_item_id)
 
             # encrypt case_id
-            encrypted_case_id = encrypt(case_id).hex()
+            encrypted_case_id = encrypt(case_id.replace("-","")).hex()
 
             # retrieve previous block hash
             prev_hash = self.chain[-1].hash
@@ -434,6 +454,56 @@ class Blockchain:
         print(f"Transactions in blockchain: {len(self.chain)}")
         print("State of blockchain: CLEAN")
         return True
+    
+    def show_cases(self, password):
+        case_ids = set()
+        for block in self.chain:
+            case_id = block.case_id
+
+                
+            if case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+                continue
+            
+            decrypted_case_id = retrieve_case_id(case_id)
+            
+            
+            case_ids.add(decrypted_case_id)
+            
+
+        if not case_ids:
+            print("No cases found in the blockchain.")
+        else:
+            for case_id in case_ids:
+                print(case_id)
+                
+    def show_items(self, case_id, password):
+        """
+        Display all item IDs in the blockchain for a specific case.
+        """
+        # Validate the provided password (if required for this operation)
+        # if password not in self.get_owner_passwords() and password != os.getenv("BCHOC_PASSWORD_CREATOR"):
+        #     raise ValueError("Invalid password for showing items.")
+
+        # Encrypt the provided case_id for comparison
+
+        # Collect unique item IDs for the given case
+        item_ids = set()
+        for block in self.chain:
+            # Match blocks with the given case_id
+            if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+                continue
+            
+            if  retrieve_case_id(block.case_id) == case_id:
+                # Decrypt the item_id
+                decrypted_item_id = decrypt(block.item_id)
+                item_ids.add(decrypted_item_id)
+
+        # Display results
+        if not item_ids:
+            print(f"No items found for case ID {case_id}.")
+        else:
+            for item_id in item_ids:
+                print(item_id)
 
 
 # This class was generated with assistance from ChatGPT, an AI tool developed by OpenAI. Specifically, the struct unpacking was cleaned up from our initial implementation
