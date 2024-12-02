@@ -16,6 +16,31 @@ def get_timestamp():
     return datetime.now(timezone.utc).timestamp()
 
 
+def encrypt16(value):
+    # Encrypts values using AES and ensures input produces exactly 16 bytes of output
+    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    
+    input_length = 16  # Desired length of the input
+    padded_value = value.ljust(input_length, b'\0')  # Pad input to 16 bytes
+    encrypted_value = cipher.encrypt(padded_value)
+    
+    return encrypted_value
+
+
+def decrypt16(encrypted_value):
+    """
+    Decrypts the encrypted value using AES and returns the raw bytes after unpadding.
+
+    Args:
+        encrypted_value (bytes): Encrypted input to be decrypted.
+
+    Returns:
+        bytes: Decrypted and unpadded raw bytes.
+    """
+    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    decrypted_padded = cipher.decrypt(encrypted_value)
+    return decrypted_padded  # Remove padding and return raw bytes
+
 def encrypt(value):
     # encrypts values using AES
     cipher = AES.new(AES_KEY, AES.MODE_ECB)
@@ -37,7 +62,7 @@ def decrypt_item(encrypted_hex):
 
 def retrieve_case_id(encrypted_case_id):
     # Decrypt the case_id
-    decrypted_case_id = decrypt(bytes.fromhex(encrypted_case_id))
+    decrypted_case_id = decrypt16(encrypted_case_id).hex()
     # Format with dashes
     formatted_case_id = (
         decrypted_case_id[:8] + "-" +
@@ -84,7 +109,8 @@ class Blockchain:
                 owner=b"\x00" * 12,  # 12 zero bytes
                 data=b"Initial block\0",  # Explicit data
             )
-            genesis_block.hash = self.calculate_hash(genesis_block)
+            #genesis_block.hash = self.calculate_hash(genesis_block)
+            genesis_block.hash = 0
             self.chain.append(genesis_block)
             self.write_block(genesis_block)
         else:
@@ -204,7 +230,7 @@ class Blockchain:
                 owner=b"\x00" * 12,  # 12 zero bytes
                 data=b"Initial block\0",  # Explicit data
             )
-            genesis_block.hash = self.calculate_hash(genesis_block)
+            genesis_block.hash ='00'
             self.chain.append(genesis_block)
             self.write_block(genesis_block)
 
@@ -240,7 +266,9 @@ class Blockchain:
             processed_item_ids.add(encrypted_item_id)
 
             # encrypt case_id
-            encrypted_case_id = encrypt(case_id.replace("-","")).hex()
+            uuid_value = uuid.UUID(case_id)
+            encrypted_case_id = encrypt16(uuid_value.bytes).hex()
+            print(f"encrypted case id: {encrypted_case_id}")
 
             # retrieve previous block hash
             prev_hash = self.chain[-1].hash
@@ -331,6 +359,7 @@ class Blockchain:
 
         with open(self.path, "ab") as f:
             # use struct.pack to align fields and convert them to binary format for writing to the file
+
             packed_block = struct.pack(
                 #  fields are in bytes format
                 "32s d 32s 32s 12s 12s 12s I",
@@ -473,8 +502,7 @@ class Blockchain:
                 
             if case_id == "3030303030303030303030303030303030303030303030303030303030303030":
                 continue
-            
-            decrypted_case_id = retrieve_case_id(case_id)
+            decrypted_case_id = retrieve_case_id(bytes.fromhex(case_id[:32]))
             
             
             case_ids.add(decrypted_case_id)
@@ -502,7 +530,7 @@ class Blockchain:
             # Match blocks with the given case_id
             if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
                 continue
-            if  retrieve_case_id(block.case_id) == case_id:
+            if  retrieve_case_id(bytes.fromhex(block.case_id[:32])) == case_id:
                 # Decrypt the item_id
                 decrypted_item_id = decrypt_item(block.item_id)
                 item_ids.add(decrypted_item_id)
@@ -531,7 +559,7 @@ class Blockchain:
                 continue
 
             # Apply filters
-            case_match = not case_id or (retrieve_case_id(block.case_id) == case_id)
+            case_match = not case_id or (retrieve_case_id(bytes.fromhex(block.case_id[:32])) == case_id)
             item_match = not item_id or (retrieve_item_id(block.item_id) == item_id)
 
             if case_match and item_match:
@@ -557,7 +585,7 @@ class Blockchain:
                     print(f"Time: {timestamp}")
                     print()
                     continue
-                case_id_to_display = retrieve_case_id(block.case_id)
+                case_id_to_display = retrieve_case_id(bytes.fromhex(block.case_id[:32]))
                 item_id_to_display = retrieve_item_id(block.item_id)                      
                 action = block.state
 
@@ -586,6 +614,8 @@ class Blockchain:
 
 
         for index, block in enumerate(self.chain):
+            if (index == 0):
+                continue
 
             # 1. Check the hash of the block (done)
             calculated_hash = self.calculate_hash(block)
