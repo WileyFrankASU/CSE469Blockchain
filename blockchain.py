@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 
 from Crypto.Cipher import AES
-from Crypto.Util.Padding import pad
+from Crypto.Util.Padding import pad, unpad
 
 AES_KEY = b"R0chLi4uLi4uLi4="
 
@@ -22,11 +22,17 @@ def encrypt(value):
     padded_value = pad(value.encode("utf-8"), 16)
     return cipher.encrypt(padded_value)
 
-
 def decrypt(encrypted_value):
     cipher = AES.new(AES_KEY, AES.MODE_ECB)
-    decrypted = cipher.decrypt(encrypted_value)
-    return decrypted('utf-8')
+    decrypted_padded = cipher.decrypt(encrypted_value)
+    return decrypted_padded.decode('utf-8')
+
+def decrypt_item(encrypted_hex):
+    encrypted_bytes = bytes.fromhex(encrypted_hex[:32])  # Remove padding
+    cipher = AES.new(AES_KEY, AES.MODE_ECB)
+    decrypted_bytes = cipher.decrypt(encrypted_bytes)
+    unpadded_bytes = unpad(decrypted_bytes, 16)
+    return unpadded_bytes.decode("utf-8")
 
 
 def retrieve_case_id(encrypted_case_id):
@@ -41,6 +47,12 @@ def retrieve_case_id(encrypted_case_id):
         decrypted_case_id[20:]
     )
     return formatted_case_id
+
+
+def retrieve_item_id(encrypted_item_id):
+    decrypted = decrypt_item(encrypted_item_id)
+    return decrypted  # Remove padding and decode
+
 
 
 class Blockchain:
@@ -59,7 +71,7 @@ class Blockchain:
 
             genesis_block = Block(
                 prev_hash=b"\x00" * 32,  # 32 zero bytes
-                timestamp=0,  # Placeholder for timestamp
+                timestamp=get_timestamp(),  # Placeholder for timestamp
                 case_id=b"0" * 32,  # 32 zero bytes
                 item_id=b"0" * 32,  # 32 zero bytes
                 state=b"INITIAL\0\0\0\0\0",  # Exactly 12 bytes
@@ -492,10 +504,9 @@ class Blockchain:
             # Match blocks with the given case_id
             if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
                 continue
-            
             if  retrieve_case_id(block.case_id) == case_id:
                 # Decrypt the item_id
-                decrypted_item_id = decrypt(block.item_id)
+                decrypted_item_id = decrypt_item(block.item_id)
                 item_ids.add(decrypted_item_id)
 
         # Display results
@@ -504,6 +515,61 @@ class Blockchain:
         else:
             for item_id in item_ids:
                 print(item_id)
+                
+    def show_history(self, case_id=None, item_id=None, num_entries=None, reverse=False, password=None):
+        """
+        Display the history of actions for a specific case or item.
+        """
+        # Validate the password if required
+        if password not in self.get_owner_passwords():
+            raise ValueError("Invalid password for showing history.")
+
+        # Filter the blocks by case_id and/or item_id if provided
+        matching_blocks = []
+        for block in self.chain:
+            if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+                if not case_id and not item_id:
+                    matching_blocks.append(block)
+                continue
+
+            # Apply filters
+            case_match = not case_id or (retrieve_case_id(block.case_id) == case_id)
+            item_match = not item_id or (retrieve_item_id(block.item_id) == item_id)
+
+            if case_match and item_match:
+                matching_blocks.append(block)
+
+        # Sort blocks by timestamp
+        matching_blocks.sort(key=lambda b: b.timestamp, reverse=reverse)
+
+        # Limit the number of entries
+        if num_entries:
+            matching_blocks = matching_blocks[:num_entries]
+
+        # Display the history
+        if not matching_blocks:
+            pass
+        else:
+            for block in matching_blocks:
+                timestamp = datetime.fromtimestamp(block.timestamp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+                if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+                    print(f"Case: 00000000-0000-0000-0000-000000000000")
+                    print(f"Item: 0")
+                    print(f"Action: INITIAL")
+                    print(f"Time: {timestamp}")
+                    print()
+                    continue
+                case_id_to_display = retrieve_case_id(block.case_id)
+                item_id_to_display = retrieve_item_id(block.item_id)                      
+                action = block.state
+
+                print(f"Case: {case_id_to_display}")
+                print(f"Item: {item_id_to_display}")
+                print(f"Action: {action}")
+                print(f"Time: {timestamp}")
+                print()
+
+
 
 
 # This class was generated with assistance from ChatGPT, an AI tool developed by OpenAI. Specifically, the struct unpacking was cleaned up from our initial implementation
