@@ -568,7 +568,86 @@ class Blockchain:
                 print(f"Action: {action}")
                 print(f"Time: {timestamp}")
                 print()
+                
+    def verify(self):
+        """
+        Verify the integrity of the blockchain, including state transitions.
+        """
+        if not self.chain:
+            print("Blockchain is empty.")
+            return
 
+        print(f"Transactions in blockchain: {len(self.chain)}")
+
+        # Initialize state
+        prev_hash = None
+        seen_item_ids = set()
+        item_states = {}
+
+        for index, block in enumerate(self.chain):
+            # 1. Check the hash of the block
+            calculated_hash = self.calculate_hash(block)
+            if block.hash != calculated_hash:
+                print("State of blockchain: ERROR")
+                print(f"Bad block: {block.hash}")
+                print("Block contents do not match block checksum.")
+                return
+
+            # 2. Check the previous hash
+            if index > 0 and block.prev_hash != prev_hash:
+                print("State of blockchain: ERROR")
+                print(f"Bad block: {block.hash}")
+                print(f"Parent block mismatch: {prev_hash}")
+                return
+
+            # 3. Check for duplicate item_id
+            if block.item_id not in seen_item_ids:
+                seen_item_ids.add(block.item_id)
+            elif block.state not in {"INITIAL"}:
+                print("State of blockchain: ERROR")
+                print(f"Duplicate item ID detected: {block.item_id}")
+                return
+
+            # 4. Validate state transitions
+            decrypted_item_id = self.decrypt_item_id(block.item_id)
+            current_state = block.state.strip()
+
+            # Ensure state transitions are valid for this item_id
+            if decrypted_item_id not in item_states:
+                # New item, initialize its state history
+                item_states[decrypted_item_id] = current_state
+            else:
+                last_state = item_states[decrypted_item_id]
+                if not self.is_valid_transition(last_state, current_state):
+                    print("State of blockchain: ERROR")
+                    print(f"Invalid state transition for item {decrypted_item_id}: {last_state} -> {current_state}")
+                    return
+
+                # Update state history for the item
+                item_states[decrypted_item_id] = current_state
+
+            # Update previous hash
+            prev_hash = block.hash
+
+        print("State of blockchain: CLEAN")
+
+    def is_valid_transition(self, last_state, current_state):
+        """
+        Validate if the transition from last_state to current_state is allowed.
+        """
+        invalid_transitions = {
+            "DISPOSED": {"CHECKEDIN", "CHECKEDOUT"},
+            "DESTROYED": {"CHECKEDIN", "CHECKEDOUT"},
+            "RELEASED": {"CHECKEDIN", "CHECKEDOUT"},
+            "CHECKEDOUT": {"CHECKEDOUT"},  # No double checkout
+            "CHECKEDIN": {"CHECKEDIN"},    # No double checkin
+        }
+
+        if last_state in invalid_transitions:
+            return current_state not in invalid_transitions[last_state]
+
+        # Default: Allow other transitions
+        return True
 
 
 
