@@ -53,7 +53,12 @@ def retrieve_item_id(encrypted_item_id):
     decrypted = decrypt_item(encrypted_item_id)
     return decrypted  # Remove padding and decode
 
-
+def is_valid_hexstring(s):
+    try:
+        bytes.fromhex(s)
+        return True
+    except ValueError:
+        return False
 
 class Blockchain:
     def __init__(self, path):
@@ -70,7 +75,7 @@ class Blockchain:
             print("Blockchain file not found. Creating INITIAL block.")
 
             genesis_block = Block(
-                prev_hash=b"\x00" * 32,  # 32 zero bytes
+                prev_hash="00" * 32,  # 32 zero bytes
                 timestamp=get_timestamp(),  # Placeholder for timestamp
                 case_id=b"0" * 32,  # 32 zero bytes
                 item_id=b"0" * 32,  # 32 zero bytes
@@ -91,9 +96,7 @@ class Blockchain:
 
         block_data = struct.pack(
             "32s d 32s 32s 12s 12s 12s I",
-            block.prev_hash.encode("utf-8").ljust(32, b"\0")
-            if isinstance(block.prev_hash, str)
-            else block.prev_hash.ljust(32, b"\0"),
+            bytes.fromhex(block.prev_hash).ljust(32, b"\0"),
             block.timestamp,
             bytes.fromhex(block.case_id).ljust(32, b"\0")
             if isinstance(block.case_id, str)
@@ -127,13 +130,11 @@ class Blockchain:
                     data_length = unpacked[-1]
                     additional_data = f.read(data_length) if data_length > 0 else b""
                     # reading in data for the length from the end of data length, as packed
-                    prev_hash = unpacked[0].hex()
-
-                    # If the prev_hash is all zeros, don't strip the '\0' bytes
-                    if prev_hash == "00" * len(unpacked[0]):
-                        prev_hash = "00" * len(unpacked[0])
-                    else:
-                        prev_hash = prev_hash.rstrip("0")
+                    prev_hash = unpacked[0].hex()[:64]
+                    
+            
+                    if not is_valid_hexstring(prev_hash):
+                        raise ValueError(f"Invalid hexstring for prev_hash in load: {prev_hash}")
 
                     block = Block(
                         prev_hash=prev_hash,
@@ -172,6 +173,7 @@ class Blockchain:
         """
         Add new evidence items to the blockchain.
         """
+        
 
         # password comparison to check if it meets creator's password
         if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
@@ -193,7 +195,7 @@ class Blockchain:
         if not os.path.exists(self.path) and not self.chain:
             print("Blockchain file not found. Creating INITIAL block.")
             genesis_block = Block(
-                prev_hash="0",  # 32 zero bytes
+                prev_hash="00"*32,  # 32 zero bytes
                 timestamp=0,  # Placeholder for timestamp
                 case_id=b"0" * 32,  # 32 zero bytes
                 item_id=b"0" * 32,  # 32 zero bytes
@@ -208,6 +210,7 @@ class Blockchain:
 
         # process all provided item_ids
         for item_id in item_ids:
+            
             item_id_str = str(item_id).strip()
             if not item_id_str:
                 raise ValueError("item_id cannot be empty.")
@@ -218,14 +221,7 @@ class Blockchain:
             # check for duplicates in the blockchain
             for block in self.chain:
                 # Since the INITIAL block is made as it is, have to check if the item_id is a string already
-                if isinstance(block.item_id, bytes):
-                    existing_item_id = (
-                        block.item_id.decode("utf-8").rstrip("0").rstrip()
-                    )  # strip padding or null bytes
-                else:
-                    existing_item_id = block.item_id.rstrip(
-                        "0"
-                    ).rstrip()  # strip padding or null bytes
+                existing_item_id = block.item_id[:32] # strip padding or null bytes
 
                 if encrypted_item_id == existing_item_id:
                     print(f"Duplicate found for item_id: {item_id_str}")
@@ -248,6 +244,9 @@ class Blockchain:
 
             # retrieve previous block hash
             prev_hash = self.chain[-1].hash
+            
+            if not is_valid_hexstring(prev_hash):
+                raise ValueError(f"Invalid hexstring for prev_hash in add: {prev_hash}")
 
             # create a new block
             block = Block(
@@ -323,6 +322,7 @@ class Blockchain:
         self.write_block(new_block)
 
         print(f"Item {item_id} removed successfully with reason: {reason}.")
+        self.print_chain()
 
     def write_block(self, block):
         """
@@ -334,9 +334,7 @@ class Blockchain:
             packed_block = struct.pack(
                 #  fields are in bytes format
                 "32s d 32s 32s 12s 12s 12s I",
-                block.prev_hash.encode("utf-8").ljust(32, b"\0")
-                if isinstance(block.prev_hash, str)
-                else block.prev_hash.ljust(32, b"\0"),
+                bytes.fromhex(block.prev_hash).ljust(32, b"\0"),
                 block.timestamp,
                 bytes.fromhex(block.case_id).ljust(32, b"\0")
                 if isinstance(block.case_id, str)
@@ -584,47 +582,45 @@ class Blockchain:
         seen_item_ids = set()
         item_states = {}
 
+        self.print_chain()
+
+
         for index, block in enumerate(self.chain):
-            # 1. Check the hash of the block
+
+            # 1. Check the hash of the block (done)
             calculated_hash = self.calculate_hash(block)
             if block.hash != calculated_hash:
                 print("State of blockchain: ERROR")
                 print(f"Bad block: {block.hash}")
                 print("Block contents do not match block checksum.")
+                raise("Verify 1")
                 return
 
-            # 2. Check the previous hash
-            if index > 0 and block.prev_hash != prev_hash:
+            # 2. Check the previous hash (done)
+            if index > 1 and block.prev_hash != prev_hash:
                 print("State of blockchain: ERROR")
                 print(f"Bad block: {block.hash}")
                 print(f"Parent block mismatch: {prev_hash}")
-                return
+                raise("Verify 2")
 
-            # 3. Check for duplicate item_id
-            if block.item_id not in seen_item_ids:
-                seen_item_ids.add(block.item_id)
-            elif block.state not in {"INITIAL"}:
-                print("State of blockchain: ERROR")
-                print(f"Duplicate item ID detected: {block.item_id}")
-                return
-
-            # 4. Validate state transitions
-            decrypted_item_id = self.decrypt_item_id(block.item_id)
+            # 3. Validate state transitions
+            item_id = block.item_id
             current_state = block.state.strip()
+            
 
             # Ensure state transitions are valid for this item_id
-            if decrypted_item_id not in item_states:
+            if item_id not in item_states:
                 # New item, initialize its state history
-                item_states[decrypted_item_id] = current_state
+                item_states[item_id] = current_state
             else:
-                last_state = item_states[decrypted_item_id]
+                last_state = item_states[item_id]
                 if not self.is_valid_transition(last_state, current_state):
                     print("State of blockchain: ERROR")
-                    print(f"Invalid state transition for item {decrypted_item_id}: {last_state} -> {current_state}")
-                    return
+                    print(f"Invalid state transition for item {retrieve_item_id(item_id)}: {last_state} -> {current_state}")
+                    raise("Verify 4")
 
                 # Update state history for the item
-                item_states[decrypted_item_id] = current_state
+                item_states[item_id] = current_state
 
             # Update previous hash
             prev_hash = block.hash
@@ -636,9 +632,9 @@ class Blockchain:
         Validate if the transition from last_state to current_state is allowed.
         """
         invalid_transitions = {
-            "DISPOSED": {"CHECKEDIN", "CHECKEDOUT"},
-            "DESTROYED": {"CHECKEDIN", "CHECKEDOUT"},
-            "RELEASED": {"CHECKEDIN", "CHECKEDOUT"},
+            "DISPOSED": {"CHECKEDIN", "CHECKEDOUT", "DISPOSED", "DESTROYED", "RELEASED"},
+            "DESTROYED": {"CHECKEDIN", "CHECKEDOUT", "DISPOSED", "DESTROYED", "RELEASED"},
+            "RELEASED": {"CHECKEDIN", "CHECKEDOUT", "DISPOSED", "DESTROYED", "RELEASED"},
             "CHECKEDOUT": {"CHECKEDOUT"},  # No double checkout
             "CHECKEDIN": {"CHECKEDIN"},    # No double checkin
         }
