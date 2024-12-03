@@ -510,7 +510,7 @@ class Blockchain:
             raise ValueError(
                 f"Item ID {item_id} cannot be checked out as it is not CHECKEDIN."
             )
-
+        owner = get_owner_from_passphrase(password)
         # add a new block
         new_block = Block(
             prev_hash=self.chain[-1].hash,
@@ -519,7 +519,7 @@ class Blockchain:
             item_id=block.item_id,
             state="CHECKEDOUT",
             creator=block.creator,
-            owner="",
+            owner=owner,
             data="",
         )
         new_block.hash = self.calculate_hash(new_block)
