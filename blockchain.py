@@ -9,6 +9,12 @@ from Crypto.Util.Padding import pad, unpad
 
 AES_KEY = b"R0chLi4uLi4uLi4="
 
+OWNER_PASSWORDS = {
+    os.getenv("BCHOC_PASSWORD_POLICE"): "POLICE",
+    os.getenv("BCHOC_PASSWORD_LAWYER"): "LAWYER",
+    os.getenv("BCHOC_PASSWORD_ANALYST"): "ANALYST",
+    os.getenv("BCHOC_PASSWORD_EXECUTIVE"): "EXECUTIVE",
+}
 
 # Timestamp helper
 def get_timestamp():
@@ -73,10 +79,14 @@ def retrieve_case_id(encrypted_case_id):
     )
     return formatted_case_id
 
+def ascii_to_cid(ascii_bytes):
+    # Decode ASCII bytes to a string
+    # Convert the hex string to bytes
+    return ascii_bytes.decode('utf-8')
 
 def retrieve_item_id(encrypted_item_id):
-    decrypted = decrypt_item(encrypted_item_id)
-    return decrypted  # Remove padding and decode
+    decrypted = decrypt16(bytes.fromhex(encrypted_item_id))
+    return int(decrypted.hex(), 16)  # Remove padding and decode
 
 def is_valid_hexstring(s):
     try:
@@ -109,8 +119,7 @@ class Blockchain:
                 owner=b"\x00" * 12,  # 12 zero bytes
                 data=b"Initial block\0",  # Explicit data
             )
-            #genesis_block.hash = self.calculate_hash(genesis_block)
-            genesis_block.hash = 0
+            genesis_block.hash = '00'
             self.chain.append(genesis_block)
             self.write_block(genesis_block)
         else:
@@ -158,6 +167,21 @@ class Blockchain:
                     # reading in data for the length from the end of data length, as packed
                     prev_hash = unpacked[0].hex()[:64]
                     
+                    ascii_cid = unpacked[2]
+                    ascii_iid = unpacked[3]
+
+                    recid = ascii_to_cid(ascii_cid)
+                    back_to_og = recid
+                    
+                    reiid = ascii_to_cid(ascii_iid)
+                    back_to_og2 = reiid
+            
+                    if (back_to_og == '00000000000000000000000000000000'):
+                        back_to_og = b'00000000000000000000000000000000'
+                        
+                    if (back_to_og2 == '00000000000000000000000000000000'):
+                        back_to_og2 = b'00000000000000000000000000000000'
+                    
             
                     if not is_valid_hexstring(prev_hash):
                         raise ValueError(f"Invalid hexstring for prev_hash in load: {prev_hash}")
@@ -165,14 +189,17 @@ class Blockchain:
                     block = Block(
                         prev_hash=prev_hash,
                         timestamp=unpacked[1],
-                        case_id=unpacked[2].hex(),
-                        item_id=unpacked[3].hex(),
+                        case_id=back_to_og,
+                        item_id=back_to_og2,
                         state=unpacked[4].decode("utf-8").rstrip("\0"),
                         creator=unpacked[5].decode("utf-8").rstrip("\0"),
                         owner=unpacked[6].decode("utf-8").rstrip("\0"),
                         data=additional_data.decode("utf-8") if data_length > 0 else "",
                     )
-                    block.hash = self.calculate_hash(block)
+                    if len(self.chain) == 0:  # Genesis block
+                        block.hash = "00"
+                    else:
+                        block.hash = self.calculate_hash(block)
                     # Append the reconstructed block to the chain
                     self.chain.append(block)
 
@@ -204,6 +231,8 @@ class Blockchain:
         # password comparison to check if it meets creator's password
         if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
             raise ValueError("Invalid password")
+        
+
 
         # check if case_id is a valid UUID
         try:
@@ -242,7 +271,12 @@ class Blockchain:
                 raise ValueError("item_id cannot be empty.")
 
             # encrypt item_id for comparison
-            encrypted_item_id = encrypt(item_id_str).hex()
+            print(item_id)
+            print(f'TYPE: {type(item_id)}')
+
+            encrypted_item_id = encrypt16(int(item_id, 10).to_bytes(16, byteorder="big")).hex()
+            
+            print(f"ENC: {encrypted_item_id}")
 
             # check for duplicates in the blockchain
             for block in self.chain:
@@ -272,6 +306,8 @@ class Blockchain:
 
             # retrieve previous block hash
             prev_hash = self.chain[-1].hash
+            print(f"prevhashAdd: {prev_hash}")
+
             
             if not is_valid_hexstring(prev_hash):
                 raise ValueError(f"Invalid hexstring for prev_hash in add: {prev_hash}")
@@ -306,6 +342,9 @@ class Blockchain:
         if password != os.getenv("BCHOC_PASSWORD_CREATOR"):
             raise ValueError("Invalid password")
         """
+        
+        if password:
+            owner = "ANALYST"
 
         reasons = {"DISPOSED", "DESTROYED", "RELEASED"}
         if reason not in reasons:
@@ -314,7 +353,7 @@ class Blockchain:
         if reason == "RELEASED" and not owner:
             raise ValueError("Owner must be provided when reason is RELEASED.")
 
-        e_item = encrypt(str(item_id).strip()).hex()
+        e_item = encrypt16(int(item_id, 10).to_bytes(16, byteorder="big")).hex()
 
         # Find the block corresponding to the item_id
         block = next(
@@ -345,6 +384,7 @@ class Blockchain:
             owner=owner or "",
             data="",
         )
+        
         new_block.hash = self.calculate_hash(new_block)
         self.chain.append(new_block)
         self.write_block(new_block)
@@ -356,21 +396,53 @@ class Blockchain:
         """
         Persist a block to the blockchain file.
         """
+        def hex_to_ascii_bytes(hex_str):
+            if isinstance(hex_str, str):
+                # If it's a string, process each character to ASCII hex
+                return bytes.fromhex("".join(f"{ord(char):02x}" for char in hex_str))
+            elif isinstance(hex_str, bytes):
+                # If it's bytes, process each byte to ASCII hex
+                return bytes.fromhex("".join(f"{byte:02x}" for byte in hex_str))
+            else:
+                raise TypeError("Input must be a str or bytes")
+            
+        
 
         with open(self.path, "ab") as f:
             # use struct.pack to align fields and convert them to binary format for writing to the file
+
+            cid = bytes.fromhex(block.case_id).ljust(32, b"\0") if isinstance(block.case_id, str) else block.case_id.ljust(32, b"\0")
+            ascii_cid = hex_to_ascii_bytes(block.case_id)
+            recid = ascii_to_cid(ascii_cid)
+            
+            ascii_iid = hex_to_ascii_bytes(block.item_id)
+            recid2 = ascii_to_cid(ascii_iid)
+            
+            #print(f"OG: {block.case_id}")
+            #print(f"CID: {cid}")
+            #print(f"ASCII: {ascii_cid}")
+            #print(f"ASCII: {len(ascii_cid)}")
+            #print(f"RECID: {recid}")
+            back_to_og = recid
+            if (back_to_og == '00000000000000000000000000000000'):
+                back_to_og = b'00000000000000000000000000000000'
+            #print(f"OG: {back_to_og}")
+            #print(f"OG2: {block.item_id}")
+            #print(f"IASCII: {ascii_iid}")
+            #print(f"RECID2: {recid2}")
+            back_to_og2 = recid2
+            if (back_to_og2 == '00000000000000000000000000000000'):
+                back_to_og2 = b'00000000000000000000000000000000'
+            #print(f"OG2: {back_to_og2}")
+            
 
             packed_block = struct.pack(
                 #  fields are in bytes format
                 "32s d 32s 32s 12s 12s 12s I",
                 bytes.fromhex(block.prev_hash).ljust(32, b"\0"),
                 block.timestamp,
-                bytes.fromhex(block.case_id).ljust(32, b"\0")
-                if isinstance(block.case_id, str)
-                else block.case_id.ljust(32, b"\0"),
-                bytes.fromhex(block.item_id).ljust(32, b"\0")
-                if isinstance(block.item_id, str)
-                else block.item_id.ljust(32, b"\0"),
+                ascii_cid,
+                ascii_iid,
                 block.state.encode("utf-8").ljust(12, b"\0")
                 if isinstance(block.state, str)
                 else block.state.ljust(12, b"\0"),
@@ -408,7 +480,7 @@ class Blockchain:
         if password not in self.get_owner_passwords():
             raise ValueError("Invalid password for checkout.")
 
-        encrypted_item_id = encrypt(str(item_id).strip()).hex()
+        encrypted_item_id = encrypt16(int(item_id, 10).to_bytes(16, byteorder="big")).hex()
 
         print(f"Checking out item_id: {item_id}, Encrypted: {encrypted_item_id}")
         block = next(
@@ -451,7 +523,7 @@ class Blockchain:
         if password not in self.get_owner_passwords():
             raise ValueError("Invalid password for checkin.")
 
-        encrypted_item_id = encrypt(str(item_id).strip()).hex()
+        encrypted_item_id = encrypt16(int(item_id, 10).to_bytes(16, byteorder="big")).hex()
 
         block = next(
             (
@@ -483,16 +555,8 @@ class Blockchain:
         new_block.hash = self.calculate_hash(new_block)
         self.chain.append(new_block)
         self.write_block(new_block)
-
-    def verify(self):
-        """
-        Verify blockchain.
-        """
-
-        # TODO: Implement logic for actually verifying the blockchain. For now, the state will always be CLEAN
-        print(f"Transactions in blockchain: {len(self.chain)}")
-        print("State of blockchain: CLEAN")
-        return True
+        
+        self.print_chain()
     
     def show_cases(self, password):
         case_ids = set()
@@ -500,7 +564,7 @@ class Blockchain:
             case_id = block.case_id
 
                 
-            if case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+            if case_id == b'00000000000000000000000000000000':
                 continue
             decrypted_case_id = retrieve_case_id(bytes.fromhex(case_id[:32]))
             
@@ -528,11 +592,11 @@ class Blockchain:
         item_ids = set()
         for block in self.chain:
             # Match blocks with the given case_id
-            if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+            if block.case_id == b'00000000000000000000000000000000':
                 continue
             if  retrieve_case_id(bytes.fromhex(block.case_id[:32])) == case_id:
                 # Decrypt the item_id
-                decrypted_item_id = decrypt_item(block.item_id)
+                decrypted_item_id = retrieve_item_id(block.item_id)
                 item_ids.add(decrypted_item_id)
 
         # Display results
@@ -553,14 +617,14 @@ class Blockchain:
         # Filter the blocks by case_id and/or item_id if provided
         matching_blocks = []
         for block in self.chain:
-            if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+            if block.case_id == b'00000000000000000000000000000000':
                 if not case_id and not item_id:
                     matching_blocks.append(block)
                 continue
 
             # Apply filters
             case_match = not case_id or (retrieve_case_id(bytes.fromhex(block.case_id[:32])) == case_id)
-            item_match = not item_id or (retrieve_item_id(block.item_id) == item_id)
+            item_match = not item_id or (retrieve_item_id(block.item_id) == int(item_id, 10))
 
             if case_match and item_match:
                 matching_blocks.append(block)
@@ -578,7 +642,7 @@ class Blockchain:
         else:
             for block in matching_blocks:
                 timestamp = datetime.fromtimestamp(block.timestamp, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-                if block.case_id == "3030303030303030303030303030303030303030303030303030303030303030":
+                if block.case_id == b'00000000000000000000000000000000':
                     print(f"Case: 00000000-0000-0000-0000-000000000000")
                     print(f"Item: 0")
                     print(f"Action: INITIAL")
@@ -586,7 +650,8 @@ class Blockchain:
                     print()
                     continue
                 case_id_to_display = retrieve_case_id(bytes.fromhex(block.case_id[:32]))
-                item_id_to_display = retrieve_item_id(block.item_id)                      
+                item_id_to_display = retrieve_item_id(block.item_id)     
+                print(f"ITEM____{item_id_to_display}")
                 action = block.state
 
                 print(f"Case: {case_id_to_display}")
@@ -651,9 +716,6 @@ class Blockchain:
 
                 # Update state history for the item
                 item_states[item_id] = current_state
-
-            # Update previous hash
-            prev_hash = block.hash
 
         print("State of blockchain: CLEAN")
 

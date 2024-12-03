@@ -130,7 +130,7 @@ def main():
                     args.password,
                 )
         elif args.command == "remove":
-            blockchain.remove(args.item_id, args.reason, args.owner, args.password)
+            blockchain.remove(args.item_id, args.reason, args.password, args.owner)
             print(f"Item {args.item_id} removed.")
         elif args.command == "verify":
             blockchain.verify()
