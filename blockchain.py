@@ -15,6 +15,15 @@ OWNER_PASSWORDS = {
     os.getenv("BCHOC_PASSWORD_ANALYST"): "ANALYST",
     os.getenv("BCHOC_PASSWORD_EXECUTIVE"): "EXECUTIVE",
 }
+def get_owner_from_passphrase(passphrase):
+        owner_map = {
+            "C67C": "CREATOR",
+            "L76L": "LAWYER",
+            "P80P": "POLICE",
+            "A65A": "ANALYST",
+            "E69E":"EXECUTIVE",
+        }
+        return owner_map.get(passphrase, "UNKNOWN")
 
 # Timestamp helper
 def get_timestamp():
@@ -372,6 +381,8 @@ class Blockchain:
             raise ValueError(
                 f"Item ID {item_id} cannot be removed as it is not CHECKEDIN."
             )
+        
+        owner = block.owner
 
         # add  new block with the state set to the removal reason
         new_block = Block(
@@ -381,7 +392,7 @@ class Blockchain:
             item_id=block.item_id,
             state=reason,
             creator=block.creator,
-            owner=owner or "",
+            owner=owner.encode("utf-8").ljust(12, b"\0"),
             data="",
         )
         
@@ -541,6 +552,8 @@ class Blockchain:
             raise ValueError(
                 f"Item ID {item_id} cannot be checked in as it is not CHECKEDOUT."
             )
+        
+        owner = get_owner_from_passphrase(password)
 
         new_block = Block(
             prev_hash=self.chain[-1].hash,
@@ -549,7 +562,7 @@ class Blockchain:
             item_id=block.item_id,
             state="CHECKEDIN",
             creator=block.creator,
-            owner="",
+            owner=owner,
             data="",
         )
         new_block.hash = self.calculate_hash(new_block)
