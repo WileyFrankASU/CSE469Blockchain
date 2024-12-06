@@ -2,7 +2,7 @@ import argparse
 import os
 import sys
 
-from blockchain import Blockchain
+from blockchain2 import Blockchain
 
 
 def parse_arguments():

@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="blockchain.py" />
+    <Compile Include="blockchain2.py" />
     <Compile Include="CSE469Blockchain.py" />
   </ItemGroup>
   <ItemGroup>
